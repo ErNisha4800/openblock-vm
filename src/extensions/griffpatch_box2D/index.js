@@ -14,7 +14,7 @@ const formatMessage = require('format-message');
 // const Matter = require('matter-js');
 
 // const Box2D = require('./Box2d.min').box2d;
-const Box2D = require('blockzie-vm/src/extensions/griffpatch_box2D/box2D_es6');
+const Box2D = require('openblock-vm/src/extensions/griffpatch_box2D/box2D_es6');
 
 // window.decomp = require('poly-decomp');
 
