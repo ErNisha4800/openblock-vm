@@ -8,7 +8,7 @@ require('babel-polyfill');
  var BlockType = require("../../extension-support/block-type.js");
  var formatMessage  = require("format-message/index.js");
  var faceapi = require("@vladmandic/face-api");
- var CheckDailyStat = require("blockzie-vm/src/engine/runtime.js");
+ var CheckDailyStat = require("openblock-vm/src/engine/runtime.js");
  var Video = require("../../io/video.js");
  var StageLayering = require("../../engine/stage-layering.js");
  var data = [];
