@@ -52,7 +52,7 @@ class Scratch3Speech2TextBlocks {
          * @type {Runtime}
          */
         this.runtime = runtime;
-
+        this._speechRecognitionErrors = 0;
         /**
          * An array of phrases from the [when I hear] hat blocks.
          * The list of phrases in the when I hear hat blocks.  This list is sent
@@ -155,11 +155,11 @@ class Scratch3Speech2TextBlocks {
         // Threshold for diff match patch to use: (0.0 = perfection, 1.0 = very loose).
         this._dmp.Match_Threshold = 0.3;
 
-        this._newSocketCallback = this._newSocketCallback.bind(this);
-        this._setupSocketCallback = this._setupSocketCallback.bind(this);
-        this._socketMessageCallback = this._socketMessageCallback.bind(this);
-        this._processAudioCallback = this._processAudioCallback.bind(this);
-        this._onTranscriptionFromServer = this._onTranscriptionFromServer.bind(this);
+        // this._newSocketCallback = this._newSocketCallback.bind(this);
+        // this._setupSocketCallback = this._setupSocketCallback.bind(this);
+        // this._socketMessageCallback = this._socketMessageCallback.bind(this);
+        // this._processAudioCallback = this._processAudioCallback.bind(this);
+        // this._onTranscriptionFromServer = this._onTranscriptionFromServer.bind(this);
         this._resetListening = this._resetListening.bind(this);
         this._stopTranscription = this._stopTranscription.bind(this);
 
@@ -177,35 +177,37 @@ class Scratch3Speech2TextBlocks {
      * @private
      */
     _scanBlocksForPhraseList () {
-        const words = [];
-        // For each each target, walk through the top level blocks and check whether
-        // they are speech hat/when I hear blocks.
-        this.runtime.targets.forEach(target => {
-            target.blocks._scripts.forEach(id => {
-                const b = target.blocks.getBlock(id);
-                if (b.opcode === 'speech_whenIHearHat') {
-                    // Grab the text from the hat block's shadow.
-                    const inputId = b.inputs.PHRASE.block;
-                    const inputBlock = target.blocks.getBlock(inputId);
-                    // Only grab the value from text blocks. This means we'll
-                    // miss some. e.g. values in variables or other reporters.
-                    if (inputBlock.opcode === 'text') {
-                        const word = target.blocks.getBlock(inputId).fields.TEXT.value;
-                        words.push(word);
-                    }
+            var words = []; // For each each target, walk through the top level blocks and check whether
+            // they are speech hat/when I hear blocks.
+      
+            this.runtime.targets.forEach(function (target) {
+              target.blocks._scripts.forEach(function (id) {
+                var b = target.blocks.getBlock(id);
+      
+                if (b.opcode === 'speech2text_whenIHearHat') {
+                  // Grab the text from the hat block's shadow.
+                  var inputId = b.inputs.PHRASE.block;
+                  var inputBlock = target.blocks.getBlock(inputId); // Only grab the value from text blocks. This means we'll
+                  // miss some. e.g. values in variables or other reporters.
+      
+                  if (inputBlock.opcode === 'text') {
+                    var word = target.blocks.getBlock(inputId).fields.TEXT.value;
+                    words.push(word);
+                  }
                 }
+              });
             });
-        });
-        return words;
-    }
+            return words;
+        }
+        
 
     /**
      * Get the viewer's language code.
      * @return {string} the language code.
      */
-    _getViewerLanguageCode () {
+     _getViewerLanguageCode() {
         return formatMessage.setup().locale || navigator.language || navigator.userLanguage || 'en-US';
-    }
+      }
 
     /**
      * Resets all things related to listening. Called on Red Stop sign button.
@@ -214,21 +216,24 @@ class Scratch3Speech2TextBlocks {
      *   - clears out any remaining speech blocks that are waiting.
      * @private.
      */
-    _resetListening () {
+     _resetListening() {
         this.runtime.emitMicListening(false);
-        this._stopListening();
-        this._closeWebsocket();
+  
+        this._stopListening(); // this._closeWebsocket();
+  
+  
         this._resolveSpeechPromises();
-    }
+      }
 
     /**
      * Reset the utterance we look for in the when I hear hat block back to
      * the empty string.
      * @private
      */
-    _resetEdgeTriggerUtterance () {
+     _resetEdgeTriggerUtterance() {
+        this._speechRecognitionErrors = 0;
         this._utteranceForEdgeTrigger = '';
-    }
+      } // /**
 
     /**
      * Close the connection to the socket server if it is open.
@@ -244,34 +249,40 @@ class Scratch3Speech2TextBlocks {
      * Call to suspend getting data from the microphone.
      * @private
      */
-    _stopListening () {
+     _stopListening() {
         // Note that this can be called before any Listen And Wait block did setup,
         // so check that things exist before disconnecting them.
         if (this._context) {
-            this._context.suspend.bind(this._context);
-        }
-        // This is called on green flag to reset things that may never have existed
+          this._context.suspend.bind(this._context);
+        } // This is called on green flag to reset things that may never have existed
         // in the first place. Do a bunch of checks.
+  
+  
         if (this._scriptNode) {
-            this._scriptNode.removeEventListener('audioprocess', this._processAudioCallback);
-            this._scriptNode.disconnect();
+          this._scriptNode.removeEventListener('audioprocess', this._processAudioCallback);
+  
+          this._scriptNode.disconnect();
         }
+  
         if (this._sourceNode) {
-            this._sourceNode.disconnect();
+          this._sourceNode.disconnect();
         }
-    }
+  
+        this._stopBrowserSpeechRecognition();
+      }
 
     /**
      * Resolves all the speech promises we've accumulated so far and empties out the list.
      * @private
      */
-    _resolveSpeechPromises () {
-        for (let i = 0; i < this._speechPromises.length; i++) {
-            const resFn = this._speechPromises[i];
-            resFn();
+     _resolveSpeechPromises() {
+        for (var i = 0; i < this._speechPromises.length; i++) {
+          var resFn = this._speechPromises[i];
+          resFn();
         }
+  
         this._speechPromises = [];
-    }
+      }
 
     /**
      * Called when we want to stop listening (e.g. when a listen block times out)
@@ -279,14 +290,16 @@ class Scratch3Speech2TextBlocks {
      * back before yielding the block execution.
      * @private
      */
-    _stopTranscription () {
+     _stopTranscription() {
         this._stopListening();
+  
         if (this._socket && this._socket.readyState === this._socket.OPEN) {
-            this._socket.send('stopTranscription');
-        }
-        // Give it a couple seconds to response before giving up and assuming nothing else will come back.
+          this._socket.send('stopTranscription');
+        } // Give it a couple seconds to response before giving up and assuming nothing else will come back.
+  
+  
         this._speechFinalResponseTimeout = setTimeout(this._resetListening, finalResponseTimeoutDurationMs);
-    }
+      }
 
     /**
      * Decides whether to keep a given transcirption result.
@@ -296,43 +309,45 @@ class Scratch3Speech2TextBlocks {
      * @returns {boolean} true If a result is good enough to be kept.
      * @private
      */
-    _shouldKeepResult (fuzzyMatchIndex, result, normalizedTranscript) {
+     _shouldKeepResult(fuzzyMatchIndex, result, normalizedTranscript) {
         // The threshold above which we decide transcription results are unlikely to change again.
         // See https://cloud.google.com/speech-to-text/docs/basics#streaming_responses.
-        const stabilityThreshold = .85;
-
-        // For responsiveness of the When I Hear hat blocks, sometimes we want to keep results that are not
+        var stabilityThreshold = .80; // For responsiveness of the When I Hear hat blocks, sometimes we want to keep results that are not
         // yet marked 'isFinal' by the speech api.  Here are some signals we use.
-
         // If the result from the speech api isn't very stable and we only had a fuzzy match, we don't want to use it.
-        const shouldKeepFuzzyMatch = fuzzyMatchIndex !== -1 && result.stability > stabilityThreshold;
-
-        // TODO: This is for debugging. Remove when this function is finalized.
+  
+        var shouldKeepFuzzyMatch = fuzzyMatchIndex !== -1 && result.stability > stabilityThreshold; // TODO: This is for debugging. Remove when this function is finalized.
+  
         if (shouldKeepFuzzyMatch) {
-            log.info(`Fuzzy match with high stability.`);
-            log.info(`match index is  ${fuzzyMatchIndex}`);
-            const phrases = this._phraseList.join(' ');
-            const matchPhrase = phrases.substring(fuzzyMatchIndex, fuzzyMatchIndex + normalizedTranscript.length);
-            log.info(`fuzzy match: ${matchPhrase} in ${normalizedTranscript}`);
-        }
-
-        // If the result is in the phraseList (i.e. it matches one of the 'When I Hear' blocks), we keep it.
+          log.info("Fuzzy match with high stability.");
+          log.info("match index is  ".concat(fuzzyMatchIndex));
+  
+          var phrases = this._phraseList.join(' ');
+  
+          var matchPhrase = phrases.substring(fuzzyMatchIndex, fuzzyMatchIndex + normalizedTranscript.length);
+          log.info("fuzzy match: ".concat(matchPhrase, " in ").concat(normalizedTranscript));
+        } // If the result is in the phraseList (i.e. it matches one of the 'When I Hear' blocks), we keep it.
         // This might be aggressive... but so far seems to be a good thing.
-        const shouldKeepPhraseListMatch = this._phraseList.includes(normalizedTranscript);
-        // TODO: This is just for debugging. Remove when this function is finalized.
+  
+  
+        var shouldKeepPhraseListMatch = this._phraseList.includes(normalizedTranscript); // TODO: This is just for debugging. Remove when this function is finalized.
+  
+  
         if (shouldKeepPhraseListMatch) {
-            log.info(`phrase list ${this._phraseList} includes ${normalizedTranscript}`);
-        }
-        // TODO: This is for debugging. Remove when this function is finalized.
+          log.info("phrase list ".concat(this._phraseList, " includes ").concat(normalizedTranscript));
+        } // TODO: This is for debugging. Remove when this function is finalized.
+  
+  
         if (result.isFinal) {
-            log.info(`result is final`);
+          log.info("result is final");
         }
-
+  
         if (!result.isFinal && !shouldKeepPhraseListMatch && !shouldKeepFuzzyMatch) {
-            return false;
+          return false;
         }
+  
         return true;
-    }
+      }
 
     /**
      * Normalizes text a bit to facilitate matching.  Lowercases, removes some punctuation and whitespace.
@@ -340,12 +355,12 @@ class Scratch3Speech2TextBlocks {
      * @returns {string} The normalized text.
      * @private
      */
-    _normalizeText (text) {
+     _normalizeText(text) {
         text = Cast.toString(text).toLowerCase();
         text = text.replace(/[.?!]/g, '');
         text = text.trim();
         return text;
-    }
+      }
 
     /**
      * Call into diff match patch library to compute whether there is a fuzzy match.
@@ -353,21 +368,24 @@ class Scratch3Speech2TextBlocks {
      * @param {string} pattern The pattern to look for in text.
      * @returns {number} The index of the match or -1 if there isn't one.
      */
-    _computeFuzzyMatch (text, pattern) {
+     _computeFuzzyMatch(text, pattern) {
         // Don't bother matching if any are null.
         if (!pattern || !text) {
-            return -1;
+          return -1;
         }
-        let match = -1;
+  
+        var match = -1;
+  
         try {
-            // Look for the text in the pattern starting at position 0.
-            match = this._dmp.match_main(text, pattern, 0);
+          // Look for the text in the pattern starting at position 0.
+          match = this._dmp.match_main(text, pattern, 0);
         } catch (e) {
-            // This can happen inf the text or pattern gets too long.  If so just substring match.
-            return pattern.indexOf(text);
+          // This can happen inf the text or pattern gets too long.  If so just substring match.
+          return pattern.indexOf(text);
         }
+  
         return match;
-    }
+      }
 
     /**
      * Processes the results we get back from the speech server.  Decides whether the results
@@ -375,55 +393,56 @@ class Scratch3Speech2TextBlocks {
      * @param {object} result The transcription result.
      * @private
      */
-    _processTranscriptionResult (result) {
-        log.info(`Got result: ${JSON.stringify(result)}`);
-        const transcriptionResult = this._normalizeText(result.alternatives[0].transcript);
-
-        // Waiting for an exact match is not satisfying.  It makes it hard to catch
+     _processTranscriptionResult(result) {
+        log.info("Got result: ".concat(JSON.stringify(result)));
+  
+        var transcriptionResult = this._normalizeText(result.alternatives[0].transcript); // Waiting for an exact match is not satisfying.  It makes it hard to catch
         // things like homonyms or things that sound similar "let us" vs "lettuce".  Using the fuzzy matching helps
         // more aggressively match the phrases that are in the "When I hear" hat blocks.
-        const phrases = this._phraseList.join(' ');
-        const fuzzyMatchIndex = this._computeFuzzyMatch(phrases, transcriptionResult);
-
-        // If the result isn't good enough yet, return without saving and resolving the promises.
+  
+  
+        var phrases = this._phraseList.join(' ');
+  
+        var fuzzyMatchIndex = this._computeFuzzyMatch(phrases, transcriptionResult); // If the result isn't good enough yet, return without saving and resolving the promises.
+  
+  
         if (!this._shouldKeepResult(fuzzyMatchIndex, result, transcriptionResult)) {
-            return;
+          return;
         }
-
+  
         this._currentUtterance = transcriptionResult;
-        log.info(`Keeing result: ${this._currentUtterance}`);
-        this._utteranceForEdgeTrigger = transcriptionResult;
-
-        // We're done listening so resolove all the promises and reset everying so we're ready for next time.
-        this._resetListening();
-
-        // We got results so clear out the timeouts.
+        log.info("Keeing result: ".concat(this._currentUtterance));
+        this._utteranceForEdgeTrigger = transcriptionResult; // We're done listening so resolove all the promises and reset everying so we're ready for next time.
+  
+        this._resetListening(); // We got results so clear out the timeouts.
+  
+  
         if (this._speechTimeoutId) {
-            clearTimeout(this._speechTimeoutId);
-            this._speechTimeoutId = null;
+          clearTimeout(this._speechTimeoutId);
+          this._speechTimeoutId = null;
         }
+  
         if (this._speechFinalResponseTimeout) {
-            clearTimeout(this._speechFinalResponseTimeout);
-            this._speechFinalResponseTimeout = null;
+          clearTimeout(this._speechFinalResponseTimeout);
+          this._speechFinalResponseTimeout = null;
         }
-    }
+      } // /**
+      //  * Handle a message from the socket. It contains transcription results.
+      //  * @param {MessageEvent} e The message event containing data from speech server.
+      //  * @private
+      //  */
+      // _onTranscriptionFromServer (e) {
+      //     let result = null;
+      //     try {
+      //         result = JSON.parse(e.data);
+      //     } catch (ex) {
+      //         log.error(`Problem parsing json. continuing: ${ex}`);
+      //         // TODO: Question - Should we kill listening and continue?
+      //         return;
+      //     }
+      //     this._processTranscriptionResult(result);
+      // }
 
-    /**
-     * Handle a message from the socket. It contains transcription results.
-     * @param {MessageEvent} e The message event containing data from speech server.
-     * @private
-     */
-    _onTranscriptionFromServer (e) {
-        let result = null;
-        try {
-            result = JSON.parse(e.data);
-        } catch (ex) {
-            log.error(`Problem parsing json. continuing: ${ex}`);
-            // TODO: Question - Should we kill listening and continue?
-            return;
-        }
-        this._processTranscriptionResult(result);
-    }
 
 
     /**
@@ -433,275 +452,343 @@ class Scratch3Speech2TextBlocks {
      * @returns {boolean} true if there is a fuzzy match.
      * @private
      */
-    _speechMatches (pattern, text) {
+     _speechMatches(pattern, text) {
         pattern = this._normalizeText(pattern);
         text = this._normalizeText(text);
-        const match = this._computeFuzzyMatch(text, pattern);
+  
+        var match = this._computeFuzzyMatch(text, pattern);
+  
         return match !== -1;
-    }
+      }
 
     /**
      * Kick off the listening process.
      * @private
      */
-    _startListening () {
+     _startListening() {
         this.runtime.emitMicListening(true);
+  
         this._initListening();
-        // Force the block to timeout if we don't get any results back/the user didn't say anything.
+  
+        this._startBrowserSpeechRecognition(); // Force the block to timeout if we don't get any results back/the user didn't say anything.
+  
+  
         this._speechTimeoutId = setTimeout(this._stopTranscription, listenAndWaitBlockTimeoutMs);
-    }
+      } 
 
     /**
      * Resume listening for audio and re-open the socket to send data.
      * @private
      */
-    _resumeListening () {
-        this._context.resume.bind(this._context);
-        this._newWebsocket();
-    }
-
-    /**
-     * Does all setup to get microphone data and initializes the web socket.
-     * that data to the speech server.
-     * @private
-     */
-    _initListening () {
-        this._initializeMicrophone();
-        this._initScriptNode();
-        this._newWebsocket();
-    }
+     _initListening() {
+        this._initializeMicrophone(); // this._initScriptNode();
+        // this._newWebsocket();
+  
+      }
 
     /**
      * Initialize the audio context and connect the microphone.
      * @private
      */
-    _initializeMicrophone () {
-        // Don't make a new context if we already made one.
-        if (!this._context) {
-            // Safari still needs a webkit prefix for audio context
-            this._context = new (window.AudioContext || window.webkitAudioContext)();
+     _initializeMicrophone() {
+        // // Don't make a new context if we already made one.
+        // if (!this._context) {
+        //     // Safari still needs a webkit prefix for audio context
+        //     this._context = new (window.AudioContext || window.webkitAudioContext)();
+        // }
+        // // In safari we have to call getUserMedia every time we want to listen. Other browsers allow
+        // // you to reuse the mediaStream.  See #1202 for more context.
+        // this._audioPromise = navigator.mediaDevices.getUserMedia({
+        //     audio: true
+        // });
+        // this._audioPromise.then().catch(e => {
+        //     log.error(`Problem connecting to microphone:  ${e}`);
+        // });
+        if (!this.SpeechRecognition) {
+          this.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition || window.oSpeechRecognition;
+          this.AudioContext = window.AudioContext || window.webkitAudioContext;
         }
-        // In safari we have to call getUserMedia every time we want to listen. Other browsers allow
-        // you to reuse the mediaStream.  See #1202 for more context.
-        this._audioPromise = navigator.mediaDevices.getUserMedia({
-            audio: true
-        });
-
-        this._audioPromise.then().catch(e => {
-            log.error(`Problem connecting to microphone:  ${e}`);
-        });
-    }
+  
+        if (!this.SpeechRecognition) {
+          document.getElementById('scratch-mlforkids-help-speechtotext').style.display = 'block';
+        }
+      } // /**
 
     /**
      * Sets up the script processor and the web socket.
      * @private
      *
      */
-    _initScriptNode () {
-        // Create a node that sends raw bytes across the websocket
-        this._scriptNode = this._context.createScriptProcessor(4096, 1, 1);
-    }
+    // _initScriptNode () {
+    //     // Create a node that sends raw bytes across the websocket
+    //     this._scriptNode = this._context.createScriptProcessor(4096, 1, 1);
+    // }
 
-    /**
-     * Callback called when it is time to setup the new web socket.
-     * @param {Function} resolve - function to call when the web socket opens succesfully.
-     * @param {Function} reject - function to call if opening the web socket fails.
-     */
-    _newSocketCallback (resolve, reject) {
-        this._socket = new WebSocket(serverURL);
-        this._socket.addEventListener('open', resolve);
-        this._socket.addEventListener('error', reject);
-    }
+    // /**
+    //  * Callback called when it is time to setup the new web socket.
+    //  * @param {Function} resolve - function to call when the web socket opens succesfully.
+    //  * @param {Function} reject - function to call if opening the web socket fails.
+    //  */
+    // _newSocketCallback (resolve, reject) {
+    //     this._socket = new WebSocket(serverURL);
+    //     this._socket.addEventListener('open', resolve);
+    //     this._socket.addEventListener('error', reject);
+    // }
 
-    /**
-     * Callback called once we've initially established the web socket is open and working.
-     * Sets up the callback for subsequent messages (i.e. transcription results)  and
-     * connects to the script node to get data.
-     * @private
-     */
-    _socketMessageCallback () {
-        this._socket.addEventListener('message', this._onTranscriptionFromServer);
-        this._startByteStream();
-    }
+    // /**
+    //  * Callback called once we've initially established the web socket is open and working.
+    //  * Sets up the callback for subsequent messages (i.e. transcription results)  and
+    //  * connects to the script node to get data.
+    //  * @private
+    //  */
+    // _socketMessageCallback () {
+    //     this._socket.addEventListener('message', this._onTranscriptionFromServer);
+    //     this._startByteStream();
+    // }
 
-    /**
-     * Sets up callback for when socket and audio are initialized.
-     * @private
-     */
-    _newWebsocket () {
-        const websocketPromise = new Promise(this._newSocketCallback);
-        Promise.all([this._audioPromise, websocketPromise]).then(
-            this._setupSocketCallback)
-            .catch(e => {
-                log.error(`Problem with setup:  ${e}`);
-            });
-    }
+    // /**
+    //  * Sets up callback for when socket and audio are initialized.
+    //  * @private
+    //  */
+    // _newWebsocket () {
+    //     const websocketPromise = new Promise(this._newSocketCallback);
+    //     Promise.all([this._audioPromise, websocketPromise]).then(
+    //         this._setupSocketCallback)
+    //         .catch(e => {
+    //             log.error(`Problem with setup:  ${e}`);
+    //         });
+    // }
 
-    /**
-     * Callback to handle initial setting up of a socket.
-     * Currently we send a setup message (only contains sample rate) but might
-     * be useful to send more data so we can do quota stuff.
-     * @param {Array} values The
-     */
-    _setupSocketCallback (values) {
-        this._micStream = values[0];
-        this._socket = values[1].target;
+    // /**
+    //  * Callback to handle initial setting up of a socket.
+    //  * Currently we send a setup message (only contains sample rate) but might
+    //  * be useful to send more data so we can do quota stuff.
+    //  * @param {Array} values The
+    //  */
+    // _setupSocketCallback (values) {
+    //     this._micStream = values[0];
+    //     this._socket = values[1].target;
 
-        this._socket.addEventListener('error', e => {
-            log.error(`Error from web socket: ${e}`);
-        });
+    //     this._socket.addEventListener('error', e => {
+    //         log.error(`Error from web socket: ${e}`);
+    //     });
 
-        // Send the initial configuration message. When the server acknowledges
-        // it, start streaming the audio bytes to the server and listening for
-        // transcriptions.
-        this._socket.addEventListener('message', this._socketMessageCallback, {once: true});
-        const langCode = this._getViewerLanguageCode();
-        this._socket.send(JSON.stringify(
-            {
-                sampleRate: this._context.sampleRate,
-                phrases: this._phraseList,
-                locale: langCode
-            }
-        ));
-    }
+    //     // Send the initial configuration message. When the server acknowledges
+    //     // it, start streaming the audio bytes to the server and listening for
+    //     // transcriptions.
+    //     this._socket.addEventListener('message', this._socketMessageCallback, {once: true});
+    //     const langCode = this._getViewerLanguageCode();
+    //     this._socket.send(JSON.stringify(
+    //         {
+    //             sampleRate: this._context.sampleRate,
+    //             phrases: this._phraseList,
+    //             locale: langCode
+    //         }
+    //     ));
+    // }
 
-    /**
-     * Do setup so we can start streaming mic data.
-     * @private
-     */
-    _startByteStream () {
-        // Hook up the scriptNode to the mic
-        this._sourceNode = this._context.createMediaStreamSource(this._micStream);
-        this._sourceNode.connect(this._scriptNode);
-        this._scriptNode.addEventListener('audioprocess', this._processAudioCallback);
-        this._scriptNode.connect(this._context.destination);
-    }
+    // /**
+    //  * Do setup so we can start streaming mic data.
+    //  * @private
+    //  */
+    // _startByteStream () {
+    //     // Hook up the scriptNode to the mic
+    //     this._sourceNode = this._context.createMediaStreamSource(this._micStream);
+    //     this._sourceNode.connect(this._scriptNode);
+    //     this._scriptNode.addEventListener('audioprocess', this._processAudioCallback);
+    //     this._scriptNode.connect(this._context.destination);
+    // }
 
-    /**
-     * Called when we have data from the microphone. Takes that data and ships
-     * it off to the speech server for transcription.
-     * @param {audioProcessingEvent} e The event with audio data in it.
-     * @private
-     */
-    _processAudioCallback (e) {
-        if (this._socket.readyState === WebSocket.CLOSED ||
-        this._socket.readyState === WebSocket.CLOSING) {
-            log.error(`Not sending data because not in ready state. State: ${this._socket.readyState}`);
-            // TODO: should we stop trying and reset state so it might work next time?
-            return;
-        }
-        const MAX_INT = Math.pow(2, 16 - 1) - 1;
-        const floatSamples = e.inputBuffer.getChannelData(0);
-        // The samples are floats in range [-1, 1]. Convert to 16-bit signed
-        // integer.
-        this._socket.send(Int16Array.from(floatSamples.map(n => n * MAX_INT)));
-    }
+    // /**
+    //  * Called when we have data from the microphone. Takes that data and ships
+    //  * it off to the speech server for transcription.
+    //  * @param {audioProcessingEvent} e The event with audio data in it.
+    //  * @private
+    //  */
+    // _processAudioCallback (e) {
+    //     if (this._socket.readyState === WebSocket.CLOSED ||
+    //     this._socket.readyState === WebSocket.CLOSING) {
+    //         log.error(`Not sending data because not in ready state. State: ${this._socket.readyState}`);
+    //         // TODO: should we stop trying and reset state so it might work next time?
+    //         return;
+    //     }
+    //     const MAX_INT = Math.pow(2, 16 - 1) - 1;
+    //     const floatSamples = e.inputBuffer.getChannelData(0);
+    //     // The samples are floats in range [-1, 1]. Convert to 16-bit signed
+    //     // integer.
+    //     this._socket.send(Int16Array.from(floatSamples.map(n => n * MAX_INT)));
+    // }
 
-    /**
-     * @return {string} - the ID of this extension.
-     */
-    get EXTENSION_ID () {
-        return 'speech2text';
-    }
-
-    /**
-     * The key to load & store a target's speech-related state.
-     * @type {string}
-     */
-    static get STATE_KEY () {
-        return 'Scratch.speech';
-    }
+    // /**
+    //  * The key to load & store a target's speech-related state.
+    //  * @type {string}
+    //  */
+    // static get STATE_KEY () {
+    //     return 'Scratch.speech';
+    // }
 
     /**
      * @returns {object} Metadata for this extension and its blocks.
      */
-    getInfo () {
-        return [{
-            id: 'speech2text',
-            name: formatMessage({
-                id: 'speech.extensionName',
-                default: 'Speech to Text',
-                description: 'Name of extension that adds speech recognition blocks.'
+     getInfo() {
+        return {
+          id: 'speech2text',
+          name: formatMessage({
+            id: 'speech.extensionName',
+            default: 'Speech to Text',
+            description: 'Name of extension that adds speech recognition blocks.'
+          }),
+          menuIconURI: menuIconURI,
+          blockIconURI: iconURI,
+          blocks: [{
+            opcode: 'listenAndWait',
+            text: formatMessage({
+              id: 'speech.listenAndWait',
+              default: 'listen and wait',
+              // eslint-disable-next-line max-len
+              description: 'Start listening to the microphone and wait for a result from the speech recognition system.'
             }),
-            menuIconURI: menuIconURI,
-            blockIconURI: iconURI,
-            blocks: [
-                {
-                    opcode: 'listenAndWait',
-                    text: formatMessage({
-                        id: 'speech.listenAndWait',
-                        default: 'listen and wait',
-                        // eslint-disable-next-line max-len
-                        description: 'Start listening to the microphone and wait for a result from the speech recognition system.'
-                    }),
-                    blockType: BlockType.COMMAND
-                },
-                {
-                    opcode: 'whenIHearHat',
-                    text: formatMessage({
-                        id: 'speech.whenIHear',
-                        default: 'when I hear [PHRASE]',
-                        // eslint-disable-next-line max-len
-                        description: 'Event that triggers when the text entered on the block is recognized by the speech recognition system.'
-                    }),
-                    blockType: BlockType.HAT,
-                    arguments: {
-                        PHRASE: {
-                            type: ArgumentType.STRING,
-                            defaultValue: formatMessage({
-                                id: 'speech.defaultWhenIHearValue',
-                                default: 'let\'s go',
-                                description: 'The default phrase/word that, when heard, triggers the event.'
-                            })
-                        }
-                    }
-                },
-                {
-                    opcode: 'getSpeech',
-                    text: formatMessage({
-                        id: 'speech.speechReporter',
-                        default: 'speech',
-                        description: 'Get the text of spoken words transcribed by the speech recognition system.'
-                    }),
-                    blockType: BlockType.REPORTER
-                }
-            ]
-        }];
-    }
+            blockType: BlockType.COMMAND
+          }, {
+            opcode: 'whenIHearHat',
+            text: formatMessage({
+              id: 'speech.whenIHear',
+              default: 'when I hear [PHRASE]',
+              // eslint-disable-next-line max-len
+              description: 'Event that triggers when the text entered on the block is recognized by the speech recognition system.'
+            }),
+            blockType: BlockType.HAT,
+            arguments: {
+              PHRASE: {
+                type: ArgumentType.STRING,
+                defaultValue: formatMessage({
+                  id: 'speech.defaultWhenIHearValue',
+                  default: 'let\'s go',
+                  description: 'The default phrase/word that, when heard, triggers the event.'
+                })
+              }
+            }
+          }, {
+            opcode: 'getSpeech',
+            text: formatMessage({
+              id: 'speech.speechReporter',
+              default: 'speech',
+              description: 'Get the text of spoken words transcribed by the speech recognition system.'
+            }),
+            blockType: BlockType.REPORTER
+          }]
+        };
+      }
 
     /**
      * Start the listening process if it isn't already in progress.
      * @return {Promise} A promise that will resolve when listening is complete.
      */
-    listenAndWait () {
+     listenAndWait() {
+        var _this = this;
+  
+        if (this._speechRecognitionErrors > 0) {
+          return;
+        }
+  
         this._phraseList = this._scanBlocksForPhraseList();
+  
         this._resetEdgeTriggerUtterance();
-
-        const speechPromise = new Promise(resolve => {
-            const listeningInProgress = this._speechPromises.length > 0;
-            this._speechPromises.push(resolve);
-            if (!listeningInProgress) {
-                this._startListening();
-            }
+  
+        var speechPromise = new Promise(function (resolve) {
+          var listeningInProgress = _this._speechPromises.length > 0;
+  
+          _this._speechPromises.push(resolve);
+  
+          if (!listeningInProgress) {
+            _this._startListening();
+          }
         });
         return speechPromise;
-    }
+      }
 
     /**
      * An edge triggered hat block to listen for a specific phrase.
      * @param {object} args - the block arguments.
      * @return {boolean} true if the phrase matches what was transcribed.
      */
-    whenIHearHat (args) {
+     whenIHearHat(args) {
         return this._speechMatches(args.PHRASE, this._utteranceForEdgeTrigger);
-    }
+      }
 
     /**
      * Reporter for the last heard phrase/utterance.
      * @return {string} The lastest thing we heard from a listen and wait block.
      */
-    getSpeech () {
+     getSpeech() {
         return this._currentUtterance;
-    }
+      }
+
+      _startBrowserSpeechRecognition() {
+        if (!this.SpeechRecognition) {
+          console.log('No speech recognition support available'); // this._resetListening();
+  
+          return;
+        }
+  
+        this.browserRecognition = new this.SpeechRecognition();
+        this.browserRecognition.continuous = false;
+        this.browserRecognition.interimResults = false;
+        this.browserRecognition.maxAlternatives = 10;
+  
+        this.browserRecognition.onresult = function (evt) {
+          // reset the count of failures
+          this._speechRecognitionErrors = 0;
+          var latest = evt.results[evt.results.length - 1];
+          var result = {
+            alternatives: [],
+            stability: latest[0].confidence,
+            isFinal: evt.results[0].isFinal
+          };
+  
+          for (var i = 0; i < latest.length; i++) {
+            result.alternatives[i] = {
+              transcript: latest[i].transcript
+            };
+          }
+  
+          this._processTranscriptionResult(result);
+        }.bind(this);
+  
+        this.browserRecognition.onerror = function (err) {
+          this._speechRecognitionErrors += 1;
+          console.log('Something went wrong', err);
+  
+          this._resetListening();
+        }.bind(this);
+  
+        this.browserRecognition.onnomatch = function () {
+          console.log('STT unrecognizable');
+        };
+  
+        this.browserRecognition.onend = function () {
+          this._resetListening();
+        }.bind(this);
+  
+        try {
+          this.browserRecognition.start();
+        } catch (err) {
+          console.log(err);
+        }
+      }
+
+      _stopBrowserSpeechRecognition() {
+        if (this.browserRecognition) {
+          try {
+            this.browserRecognition.stop();
+          } catch (err) {
+            console.log(err);
+          }
+        }
+      }
+
+      static get STATE_KEY(){
+        return 'Scratch.speech';
+      }
 }
 module.exports = Scratch3Speech2TextBlocks;

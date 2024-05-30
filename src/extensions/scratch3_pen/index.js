@@ -72,13 +72,6 @@ class Scratch3PenBlocks {
     }
 
     /**
-     * @return {string} - the ID of this extension.
-     */
-    get EXTENSION_ID () {
-        return 'pen';
-    }
-
-    /**
      * The default pen state, to be used when a target has no existing pen state.
      * @type {PenState}
      */
@@ -289,7 +282,7 @@ class Scratch3PenBlocks {
      * @returns {object} metadata for this extension and its blocks.
      */
     getInfo () {
-        return [{
+        return {
             id: 'pen',
             name: formatMessage({
                 id: 'pen.categoryName',
@@ -498,7 +491,7 @@ class Scratch3PenBlocks {
                     items: this._initColorParam()
                 }
             }
-        }];
+        };
     }
 
     /**

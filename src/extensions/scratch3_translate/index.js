@@ -85,13 +85,6 @@ class Scratch3TranslateBlocks {
     }
 
     /**
-     * @return {string} - the ID of this extension.
-     */
-    get EXTENSION_ID () {
-        return 'translate';
-    }
-
-    /**
      * The key to load & store a target's translate state.
      * @return {string} The key.
      */
@@ -107,7 +100,7 @@ class Scratch3TranslateBlocks {
         this._randomLanguageCode = this._supportedLanguages[
             Math.floor(Math.random() * this._supportedLanguages.length)].value;
 
-        return [{
+        return {
             id: 'translate',
             name: formatMessage({
                 id: 'translate.categoryName',
@@ -158,7 +151,7 @@ class Scratch3TranslateBlocks {
                     items: this._supportedLanguages
                 }
             }
-        }];
+        };
     }
 
     /**
